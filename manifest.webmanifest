@@ -1,0 +1,20 @@
+{
+  "id": "cr-tools-movil",
+  "name": "CR-Tools · Mi negocio",
+  "short_name": "Mi negocio",
+  "description": "Mirá tu negocio en tiempo real: ventas del día, stock y actividad.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "movil-negocio.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#03040A",
+  "theme_color": "#03040A",
+  "categories": ["business"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
