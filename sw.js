@@ -3,8 +3,8 @@
 //  · navegación/HTML  → network-first (siempre la última versión; offline cae al shell)
 //  · assets con hash  → cache-first (inmutables por el hash de Vite)
 //  · cross-origin     → red directa (Supabase, fuentes: nunca se cachean)
-const CACHE = "cr-movil-v1";
-const SHELL = ["movil-negocio.html", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
+const CACHE = "cr-movil-v2";
+const SHELL = ["movil-negocio.html", "movil-venta.html", "manifest.webmanifest", "manifest-venta.webmanifest", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();

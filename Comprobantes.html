@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CR-Tools — Comprobantes (Presupuesto · Remito · Recibo · Factura)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1A2230;
+    --ink-soft: #4A5568;
+    --ink-muted: #8A94A6;
+    --accent: #3A5FCC;
+    --line: #D8DEE9;
+    --fill: #F3F5F9;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #ECEEF2;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.45;
+  }
+  .mono { font-family: "IBM Plex Mono", monospace; font-feature-settings: "tnum"; }
+
+  /* ── Toolbar en pantalla ── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 24px;
+    background: rgba(236, 238, 242, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .toolbar .brand { font-family: "Space Grotesk", sans-serif; font-weight: 600; margin-right: 16px; }
+  .toolbar a {
+    display: inline-flex; align-items: center; height: 34px; padding: 0 14px;
+    border-radius: 999px; text-decoration: none; font-size: 13px; font-weight: 500;
+    color: var(--ink-soft); border: 1px solid var(--line); background: #fff;
+  }
+  .toolbar a:hover { border-color: var(--accent); color: var(--accent); }
+  .toolbar .spacer { flex: 1; }
+  .toolbar button {
+    height: 36px; padding: 0 18px; border-radius: 999px; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; font-family: "Space Grotesk", sans-serif;
+    font-size: 13px; font-weight: 600;
+  }
+
+  /* ── Página ── */
+  .page {
+    width: 816px; min-height: 1056px; margin: 28px auto;
+    background: #fff; border-radius: 3px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 56px 64px;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+
+  /* ── Cabecera del comprobante ── */
+  .doc-head {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px;
+    padding-bottom: 18px; border-bottom: 2px solid var(--ink);
+  }
+  .emisor .nombre { font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .emisor .datos { margin-top: 8px; font-size: 12px; color: var(--ink-soft); line-height: 1.55; }
+  .letterbox { text-align: center; align-self: start; }
+  .letterbox .letra {
+    width: 64px; height: 64px; margin: 0 auto;
+    border: 2px solid var(--ink); border-radius: 6px;
+    display: grid; place-items: center;
+    font-family: "Space Grotesk", sans-serif; font-size: 34px; font-weight: 600;
+  }
+  .letterbox .cod { font-size: 10px; color: var(--ink-muted); margin-top: 5px; letter-spacing: 0.06em; }
+  .doc-meta { text-align: right; }
+  .doc-meta .tipo {
+    font-family: "Space Grotesk", sans-serif; font-size: 19px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent);
+  }
+  .doc-meta .num { font-size: 15px; margin-top: 6px; }
+  .doc-meta .fila { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+  .doc-meta .fila b { color: var(--ink); font-weight: 600; }
+
+  .aviso {
+    margin-top: 10px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-muted); text-align: center;
+  }
+
+  /* ── Bloque cliente ── */
+  .cliente {
+    display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 4px 24px;
+    margin-top: 20px; padding: 14px 18px;
+    background: var(--fill); border-radius: 6px;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+    break-inside: avoid;
+  }
+  .campo { font-size: 12.5px; }
+  .campo .et { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-muted); display: block; }
+  .campo .v { font-weight: 500; }
+
+  /* ── Tabla de ítems ── */
+  table.items { width: 100%; border-collapse: collapse; margin-top: 22px; }
+  table.items th {
+    font-family: "Space Grotesk", sans-serif; font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-soft);
+    text-align: left; padding: 9px 10px;
+    background: var(--fill); print-color-adjust: exact; -webkit-print-color-adjust: exact;
+    border-bottom: 1px solid var(--line);
+  }
+  table.items td { padding: 9px 10px; font-size: 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.items tr { break-inside: avoid; }
+  .num-col { text-align: right; white-space: nowrap; }
+  th.num-col { text-align: right; }
+  td .det { font-size: 11.5px; color: var(--ink-muted); }
+
+  /* ── Totales ── */
+  .totales { margin-top: 18px; margin-left: auto; width: 300px; break-inside: avoid; }
+  .totales .fila { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 13px; color: var(--ink-soft); }
+  .totales .total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 6px; padding: 11px 14px;
+    background: var(--ink); color: #fff; border-radius: 6px;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  .totales .total .et { font-family: "Space Grotesk", sans-serif; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .totales .total .v { font-family: "IBM Plex Mono", monospace; font-size: 19px; font-weight: 500; }
+
+  /* ── Notas y pie ── */
+  .nota {
+    margin-top: 20px; padding: 12px 16px; font-size: 12px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 6px; break-inside: avoid;
+  }
+  .nota b { color: var(--ink); }
+
+  .doc-foot {
+    margin-top: auto; padding-top: 22px;
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 24px;
+    break-inside: avoid;
+  }
+  .cae { font-size: 12px; color: var(--ink-soft); }
+  .cae b { color: var(--ink); }
+  .qr-box {
+    width: 78px; height: 78px; border: 1px dashed var(--ink-muted); border-radius: 4px;
+    display: grid; place-items: center; font-size: 9px; color: var(--ink-muted); text-align: center;
+    flex-shrink: 0;
+  }
+  .firmas { display: flex; gap: 48px; }
+  .firma { width: 200px; text-align: center; font-size: 11px; color: var(--ink-soft); }
+  .firma .linea { border-top: 1px solid var(--ink); margin-bottom: 5px; padding-top: 5px; }
+  .generado {
+    position: absolute; bottom: 22px; left: 64px; right: 64px;
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--ink-muted);
+  }
+
+  .en-letras { font-size: 12.5px; margin-top: 14px; padding: 12px 16px; background: var(--fill); border-radius: 6px;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .en-letras .et { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-muted); display: block; }
+
+  .fiscal-aviso {
+    margin: 0 auto 20px; max-width: 820px; padding: 10px 16px;
+    border-radius: 10px; font-size: 13px; font-weight: 500;
+    background: #FFF4E5; color: #9A5B00; border: 1px solid #F3D6A6;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ── Impresión ── */
+  @page { margin: 0.55in; }
+  @media print {
+    body { background: #fff; }
+    .toolbar, .fiscal-aviso { display: none; }
+    .page {
+      width: auto; min-height: 0; margin: 0; padding: 0;
+      box-shadow: none; border-radius: 0;
+      break-after: page;
+    }
+    .page:last-child { break-after: auto; }
+    .generado { position: static; margin-top: 18px; }
+    .doc-foot { margin-top: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="brand">CR-Tools · Comprobantes</span>
+  <a href="#presupuesto">Presupuesto</a>
+  <a href="#remito">Remito</a>
+  <a href="#factura">Factura B</a>
+  <a href="#factura-a">Factura A</a>
+  <a href="#nota-credito">Nota de crédito</a>
+  <a href="#recibo">Recibo</a>
+  <span class="spacer"></span>
+  <a href="Panel Admin.html">← Panel Admin</a>
+  <button onclick="window.print()">Imprimir / Guardar PDF</button>
+</div>
+
+<div class="fiscal-aviso">⚠️ <span><b>CAE y QR son placeholder</b> — homologar el punto de venta con ARCA para emitir comprobantes con validez fiscal.</span></div>
+
+<!-- ════════ PRESUPUESTO ════════ -->
+<section class="page" id="presupuesto" data-screen-label="Presupuesto">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">X</div>
+      <div class="cod">NO FISCAL</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Presupuesto</div>
+      <div class="num mono">N° 0001-00000312</div>
+      <div class="fila">Fecha: <b>12/06/2026</b></div>
+      <div class="fila">Validez: <b>15 días</b></div>
+    </div>
+  </header>
+  <div class="aviso">Documento no válido como factura</div>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Cliente</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Cond. de venta</span><span class="v">Contado / Cta. cte.</span></div>
+    <div class="campo"><span class="et">Domicilio</span><span class="v">Ruta 8 km 42, Pilar</span></div>
+    <div class="campo"><span class="et">Cond. IVA</span><span class="v">Resp. Inscripto</span></div>
+    <div class="campo"><span class="et">Atendido por</span><span class="v">Valentina Ruiz</span></div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:70px">Código</th>
+        <th>Descripción</th>
+        <th class="num-col" style="width:60px">Cant.</th>
+        <th class="num-col" style="width:110px">P. unitario</th>
+        <th class="num-col" style="width:110px">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">P04</td>
+        <td>Taladro percutor 13 mm <span class="det">· 750 W</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">98.500,00</td>
+        <td class="num-col mono">98.500,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P09</td>
+        <td>Látex interior 4 L <span class="det">· blanco mate</span></td>
+        <td class="num-col mono">4</td>
+        <td class="num-col mono">32.900,00</td>
+        <td class="num-col mono">131.600,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P07</td>
+        <td>Cable unipolar 2.5 mm <span class="det">· rollo ×10 m</span></td>
+        <td class="num-col mono">2</td>
+        <td class="num-col mono">12.600,00</td>
+        <td class="num-col mono">25.200,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P01</td>
+        <td>Tornillo fix 8×50 <span class="det">· caja ×100</span></td>
+        <td class="num-col mono">3</td>
+        <td class="num-col mono">6.900,00</td>
+        <td class="num-col mono">20.700,00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <div class="fila"><span>Subtotal</span><span class="mono">$ 276.000,00</span></div>
+    <div class="fila"><span>Bonificación 5%</span><span class="mono">− $ 13.800,00</span></div>
+    <div class="total"><span class="et">Total presupuestado</span><span class="v">$ 262.200,00</span></div>
+  </div>
+
+  <div class="nota">
+    <b>Condiciones:</b> precios con IVA incluido, sujetos a cambio sin previo aviso una vez vencida la validez.
+    Entrega a coordinar según disponibilidad de stock. Seña del 30% para reservar mercadería.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="firmas">
+      <div class="firma"><div class="linea">Firma y aclaración — Ferretería Roca</div></div>
+    </div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Presupuesto 0001-00000312 · pág. 1 de 1</span></div>
+</section>
+
+<!-- ════════ REMITO ════════ -->
+<section class="page" id="remito" data-screen-label="Remito">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">R</div>
+      <div class="cod">COD. 091</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Remito</div>
+      <div class="num mono">N° 0001-00002148</div>
+      <div class="fila">Fecha: <b>12/06/2026</b></div>
+      <div class="fila">Presupuesto: <b class="mono">0001-00000312</b></div>
+    </div>
+  </header>
+  <div class="aviso">Documento no válido como factura</div>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Destinatario</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Transporte</span><span class="v">Reparto propio</span></div>
+    <div class="campo"><span class="et">Lugar de entrega</span><span class="v">Obra: Ruta 8 km 42, Pilar</span></div>
+    <div class="campo"><span class="et">Cond. IVA</span><span class="v">Resp. Inscripto</span></div>
+    <div class="campo"><span class="et">Preparado por</span><span class="v">Diego Paredes</span></div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:70px">Código</th>
+        <th>Descripción</th>
+        <th class="num-col" style="width:80px">Bultos</th>
+        <th class="num-col" style="width:90px">Cantidad</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">P04</td>
+        <td>Taladro percutor 13 mm <span class="det">· 750 W</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">1 u.</td>
+      </tr>
+      <tr>
+        <td class="mono">P09</td>
+        <td>Látex interior 4 L <span class="det">· blanco mate</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">4 u.</td>
+      </tr>
+      <tr>
+        <td class="mono">P07</td>
+        <td>Cable unipolar 2.5 mm <span class="det">· rollo ×10 m</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">2 u.</td>
+      </tr>
+      <tr>
+        <td class="mono">P01</td>
+        <td>Tornillo fix 8×50 <span class="det">· caja ×100</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">3 u.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="nota">
+    <b>Valor declarado:</b> <span class="mono">$ 262.200,00</span> · Mercadería viaja por cuenta y riesgo del comprador.
+    Verificar cantidades y estado al momento de la recepción; no se aceptan reclamos posteriores.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="firmas">
+      <div class="firma"><div class="linea">Entregó — firma y aclaración</div></div>
+      <div class="firma"><div class="linea">Recibí conforme — firma, aclaración y DNI</div></div>
+    </div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Remito 0001-00002148 · pág. 1 de 1</span></div>
+</section>
+
+<!-- ════════ FACTURA B ════════ -->
+<section class="page" id="factura" data-screen-label="Factura B">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">B</div>
+      <div class="cod">COD. 006</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Factura</div>
+      <div class="num mono">N° 0003-00012457</div>
+      <div class="fila">Fecha de emisión: <b>12/06/2026</b></div>
+      <div class="fila">Cond. de venta: <b>Cuenta corriente</b></div>
+    </div>
+  </header>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Cliente</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Remito</span><span class="v mono">0001-00002148</span></div>
+    <div class="campo"><span class="et">Domicilio</span><span class="v">Ruta 8 km 42, Pilar</span></div>
+    <div class="campo"><span class="et">Cond. IVA</span><span class="v">Resp. Inscripto</span></div>
+    <div class="campo"><span class="et">Vendedor</span><span class="v">Valentina Ruiz</span></div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:70px">Código</th>
+        <th>Descripción</th>
+        <th class="num-col" style="width:60px">Cant.</th>
+        <th class="num-col" style="width:110px">P. unitario</th>
+        <th class="num-col" style="width:80px">Bonif.</th>
+        <th class="num-col" style="width:110px">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">P04</td>
+        <td>Taladro percutor 13 mm <span class="det">· 750 W</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">98.500,00</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">93.575,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P09</td>
+        <td>Látex interior 4 L <span class="det">· blanco mate</span></td>
+        <td class="num-col mono">4</td>
+        <td class="num-col mono">32.900,00</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">125.020,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P07</td>
+        <td>Cable unipolar 2.5 mm <span class="det">· rollo ×10 m</span></td>
+        <td class="num-col mono">2</td>
+        <td class="num-col mono">12.600,00</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">23.940,00</td>
+      </tr>
+      <tr>
+        <td class="mono">P01</td>
+        <td>Tornillo fix 8×50 <span class="det">· caja ×100</span></td>
+        <td class="num-col mono">3</td>
+        <td class="num-col mono">6.900,00</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">19.665,00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <div class="fila"><span>Subtotal</span><span class="mono">$ 262.200,00</span></div>
+    <div class="fila"><span>IVA contenido (21%)</span><span class="mono">$ 45.505,79</span></div>
+    <div class="total"><span class="et">Total</span><span class="v">$ 262.200,00</span></div>
+  </div>
+
+  <div class="nota">
+    <b>Vencimiento:</b> 27/06/2026 · El pago fuera de término devenga interés del 4% mensual.
+    Régimen de transparencia fiscal al consumidor (Ley 27.743): IVA contenido <span class="mono">$ 45.505,79</span>.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="cae">
+      <b>CAE N°:</b> <span class="mono">76234518902347</span><br>
+      <b>Vto. CAE:</b> 22/06/2026
+    </div>
+    <div class="qr-box">QR fiscal<br>(AFIP/ARCA)</div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Factura B 0003-00012457 · pág. 1 de 1</span></div>
+</section>
+
+<!-- ════════ FACTURA A ════════ -->
+<section class="page" id="factura-a" data-screen-label="Factura A">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">A</div>
+      <div class="cod">COD. 001</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Factura</div>
+      <div class="num mono">N° 0003-00000841</div>
+      <div class="fila">Fecha de emisión: <b>12/06/2026</b></div>
+      <div class="fila">Cond. de venta: <b>Cuenta corriente</b></div>
+    </div>
+  </header>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Cliente</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Remito</span><span class="v mono">0001-00002148</span></div>
+    <div class="campo"><span class="et">Domicilio</span><span class="v">Ruta 8 km 42, Pilar</span></div>
+    <div class="campo"><span class="et">Cond. IVA</span><span class="v">Resp. Inscripto</span></div>
+    <div class="campo"><span class="et">Vendedor</span><span class="v">Valentina Ruiz</span></div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:64px">Código</th>
+        <th>Descripción</th>
+        <th class="num-col" style="width:52px">Cant.</th>
+        <th class="num-col" style="width:100px">P. unit. neto</th>
+        <th class="num-col" style="width:60px">Bonif.</th>
+        <th class="num-col" style="width:100px">Neto</th>
+        <th class="num-col" style="width:60px">IVA</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">P04</td>
+        <td>Taladro percutor 13 mm <span class="det">· 750 W</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">81.404,96</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">77.334,71</td>
+        <td class="num-col mono">21%</td>
+      </tr>
+      <tr>
+        <td class="mono">P09</td>
+        <td>Látex interior 4 L <span class="det">· blanco mate</span></td>
+        <td class="num-col mono">4</td>
+        <td class="num-col mono">27.190,08</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">103.322,31</td>
+        <td class="num-col mono">21%</td>
+      </tr>
+      <tr>
+        <td class="mono">P07</td>
+        <td>Cable unipolar 2.5 mm <span class="det">· rollo ×10 m</span></td>
+        <td class="num-col mono">2</td>
+        <td class="num-col mono">10.413,22</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">19.785,12</td>
+        <td class="num-col mono">21%</td>
+      </tr>
+      <tr>
+        <td class="mono">P01</td>
+        <td>Tornillo fix 8×50 <span class="det">· caja ×100</span></td>
+        <td class="num-col mono">3</td>
+        <td class="num-col mono">5.702,48</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">16.252,07</td>
+        <td class="num-col mono">21%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <div class="fila"><span>Subtotal neto gravado</span><span class="mono">$ 216.694,21</span></div>
+    <div class="fila"><span>IVA 21%</span><span class="mono">$ 45.505,79</span></div>
+    <div class="fila"><span>Percepciones / otros tributos</span><span class="mono">$ 0,00</span></div>
+    <div class="total"><span class="et">Total</span><span class="v">$ 262.200,00</span></div>
+  </div>
+
+  <div class="nota">
+    <b>Vencimiento:</b> 27/06/2026 · El pago fuera de término devenga interés del 4% mensual.
+    Operación entre responsables inscriptos: el IVA discriminado constituye crédito fiscal para el comprador.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="cae">
+      <b>CAE N°:</b> <span class="mono">76234518911025</span><br>
+      <b>Vto. CAE:</b> 22/06/2026
+    </div>
+    <div class="qr-box">QR fiscal<br>(AFIP/ARCA)</div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Factura A 0003-00000841 · pág. 1 de 1</span></div>
+</section>
+
+<!-- ════════ NOTA DE CRÉDITO A ════════ -->
+<section class="page" id="nota-credito" data-screen-label="Nota de crédito A">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">A</div>
+      <div class="cod">COD. 003</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Nota de crédito</div>
+      <div class="num mono">N° 0003-00000687</div>
+      <div class="fila">Fecha de emisión: <b>13/06/2026</b></div>
+      <div class="fila">Comprob. asociado: <b class="mono">FA 0003-00000841</b></div>
+    </div>
+  </header>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Cliente</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Motivo</span><span class="v">Devolución por producto defectuoso</span></div>
+    <div class="campo"><span class="et">Domicilio</span><span class="v">Ruta 8 km 42, Pilar</span></div>
+    <div class="campo"><span class="et">Cond. IVA</span><span class="v">Resp. Inscripto</span></div>
+    <div class="campo"><span class="et">Autorizada por</span><span class="v">Roberto Roca (Dueño)</span></div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:64px">Código</th>
+        <th>Descripción</th>
+        <th class="num-col" style="width:52px">Cant.</th>
+        <th class="num-col" style="width:100px">P. unit. neto</th>
+        <th class="num-col" style="width:60px">Bonif.</th>
+        <th class="num-col" style="width:100px">Neto</th>
+        <th class="num-col" style="width:60px">IVA</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">P09</td>
+        <td>Látex interior 4 L <span class="det">· blanco mate · envase dañado</span></td>
+        <td class="num-col mono">1</td>
+        <td class="num-col mono">27.190,08</td>
+        <td class="num-col mono">5%</td>
+        <td class="num-col mono">25.830,58</td>
+        <td class="num-col mono">21%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <div class="fila"><span>Subtotal neto gravado</span><span class="mono">$ 25.830,58</span></div>
+    <div class="fila"><span>IVA 21%</span><span class="mono">$ 5.424,42</span></div>
+    <div class="total"><span class="et">Total acreditado</span><span class="v">$ 31.255,00</span></div>
+  </div>
+
+  <div class="nota">
+    <b>Imputación:</b> el crédito se aplica al saldo de la cuenta corriente del cliente.
+    Saldo anterior <span class="mono">$ 262.200,00</span> → saldo posterior <span class="mono">$ 230.945,00</span>.
+    Mercadería devuelta ingresada por depósito (Diego Paredes) — remito de devolución <span class="mono">0001-00002151</span>.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="cae">
+      <b>CAE N°:</b> <span class="mono">76234518917733</span><br>
+      <b>Vto. CAE:</b> 23/06/2026
+    </div>
+    <div class="qr-box">QR fiscal<br>(AFIP/ARCA)</div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Nota de crédito A 0003-00000687 · pág. 1 de 1</span></div>
+</section>
+
+<!-- ════════ RECIBO ════════ -->
+<section class="page" id="recibo" data-screen-label="Recibo">
+  <header class="doc-head">
+    <div class="emisor">
+      <div class="nombre">Ferretería Roca</div>
+      <div class="datos">
+        Roberto Roca · Av. Mitre 1480, San Miguel, Bs. As.<br>
+        CUIT 20-22456789-3 · IIBB 902-114567-8<br>
+        Inicio de actividades: 03/2018 · IVA Responsable Inscripto
+      </div>
+    </div>
+    <div class="letterbox">
+      <div class="letra">X</div>
+      <div class="cod">NO FISCAL</div>
+    </div>
+    <div class="doc-meta">
+      <div class="tipo">Recibo</div>
+      <div class="num mono">N° 0001-00003981</div>
+      <div class="fila">Fecha: <b>12/06/2026</b></div>
+      <div class="fila">Cobrado por: <b>Martín Soria</b></div>
+    </div>
+  </header>
+  <div class="aviso">Recibo de pago — documento no válido como factura</div>
+
+  <div class="cliente">
+    <div class="campo"><span class="et">Recibimos de</span><span class="v">Constructora Delta SRL</span></div>
+    <div class="campo"><span class="et">CUIT</span><span class="v mono">30-71456789-2</span></div>
+    <div class="campo"><span class="et">Forma de pago</span><span class="v">Transferencia</span></div>
+  </div>
+
+  <div class="en-letras">
+    <span class="et">La suma de pesos</span>
+    Doscientos sesenta y dos mil doscientos con 00/100
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>Aplicado a</th>
+        <th style="width:130px">Fecha comprob.</th>
+        <th class="num-col" style="width:120px">Importe original</th>
+        <th class="num-col" style="width:120px">Imputado</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Factura B <span class="mono">0003-00012457</span></td>
+        <td class="mono">12/06/2026</td>
+        <td class="num-col mono">262.200,00</td>
+        <td class="num-col mono">262.200,00</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <div class="fila"><span>Saldo anterior de cuenta</span><span class="mono">$ 262.200,00</span></div>
+    <div class="fila"><span>Saldo posterior</span><span class="mono">$ 0,00</span></div>
+    <div class="total"><span class="et">Total recibido</span><span class="v">$ 262.200,00</span></div>
+  </div>
+
+  <div class="nota">
+    <b>Detalle del medio de pago:</b> transferencia bancaria a la cuenta de Ferretería Roca
+    — alias <span class="mono">ferreteria.cr.tools</span> · comprobante bancario N° <span class="mono">88412903</span>.
+    Válido sujeto a acreditación definitiva de los fondos.
+  </div>
+
+  <footer class="doc-foot">
+    <div class="firmas">
+      <div class="firma"><div class="linea">Firma y aclaración — Ferretería Roca</div></div>
+    </div>
+  </footer>
+  <div class="generado"><span>Generado con CR-Tools</span><span>Recibo 0001-00003981 · pág. 1 de 1</span></div>
+</section>
+
+<script>
+// Datos fiscales configurables (Fase 3.1): inyecta los datos del comercio guardados desde el Panel Admin.
+(function () {
+  var f; try { f = JSON.parse(localStorage.getItem("cr_fiscal") || "null"); } catch (e) {}
+  f = f || {};
+  var nombre = f.nombre || "Tu comercio";
+
+  // Siempre se sobreescribe el emisor: sin datos configurados muestra placeholders
+  // neutros (no datos demo). El cliente carga los suyos en Panel Admin → Configuración.
+  document.querySelectorAll(".emisor").forEach(function (em) {
+    var nom = em.querySelector(".nombre"), dat = em.querySelector(".datos");
+    if (nom) nom.textContent = nombre;
+    if (dat) dat.innerHTML =
+      (f.responsable || "—") + " · " + (f.domicilio || "—") + "<br>" +
+      "CUIT " + (f.cuit || "—") + " · IIBB " + (f.iibb || "—") + "<br>" +
+      "Inicio de actividades: " + (f.inicioAct || "—") + " · " + (f.condIva || "—");
+  });
+
+  document.querySelectorAll(".firma .linea").forEach(function (el) {
+    el.textContent = "Firma y aclaración — " + nombre;
+  });
+
+  // Punto de venta solo en comprobantes fiscales
+  if (f.pv) ["factura", "factura-a", "nota-credito"].forEach(function (id) {
+    var sec = document.getElementById(id);
+    if (!sec) return;
+    sec.querySelectorAll(".num.mono, .generado span:last-child").forEach(function (el) {
+      el.textContent = el.textContent.replace(/\b\d{4}-(\d{8})\b/, f.pv + "-$1");
+    });
+  });
+
+  // Alias de transferencia
+  if (f.alias) document.querySelectorAll(".mono").forEach(function (el) {
+    if (el.textContent.trim() === "ferreteria.cr.tools") el.textContent = f.alias;
+  });
+})();
+</script>
+
+<script>
+// Venta → Comprobante: si la App Operativa dejó una venta en localStorage, poblar la Factura real.
+(function () {
+  var raw; try { raw = localStorage.getItem("cr_venta"); } catch (e) { return; }
+  if (!raw) return;
+  var v; try { v = JSON.parse(raw); } catch (e) { return; }
+  if (!v || !v.items) return;
+
+  function m2(n) { return Number(n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  var esFA = v.tipo === "FA";
+  var sec = document.getElementById(esFA ? "factura-a" : "factura");
+  if (!sec) return;
+
+  sec.querySelector(".doc-meta .num").textContent = "N° " + v.numero;
+  var filas = sec.querySelectorAll(".doc-meta .fila");
+  if (filas[0]) filas[0].innerHTML = "Fecha de emisión: <b>" + v.fecha + "</b>";
+  if (filas[1]) filas[1].innerHTML = "Cond. de venta: <b>" + v.condVenta + "</b>";
+
+  var campos = sec.querySelectorAll(".cliente .campo .v");
+  if (campos[0]) campos[0].textContent = v.cliente ? v.cliente.nombre : "Consumidor Final";
+  if (campos[1]) campos[1].textContent = "—";
+  if (campos[2]) campos[2].textContent = "—";
+  if (campos[3]) campos[3].textContent = "—";
+  if (campos[4]) campos[4].textContent = v.cliente ? "Resp. Inscripto" : "Consumidor Final";
+  if (campos[5]) campos[5].textContent = v.empleado;
+
+  var tbody = sec.querySelector("table.items tbody");
+  tbody.innerHTML = v.items.map(function (it) {
+    var det = it.detalle ? ' <span class="det">· ' + it.detalle + '</span>' : '';
+    var bonif = (it.desc || 0) + '%';
+    if (esFA) {
+      var unitNeto = it.precio / 1.21, netoLinea = it.importe / 1.21;
+      return '<tr><td class="mono">' + it.codigo + '</td><td>' + it.nombre + det +
+        '</td><td class="num-col mono">' + it.qty +
+        '</td><td class="num-col mono">' + m2(unitNeto) +
+        '</td><td class="num-col mono">' + bonif + '</td><td class="num-col mono">' + m2(netoLinea) +
+        '</td><td class="num-col mono">21%</td></tr>';
+    }
+    return '<tr><td class="mono">' + it.codigo + '</td><td>' + it.nombre + det +
+      '</td><td class="num-col mono">' + it.qty +
+      '</td><td class="num-col mono">' + m2(it.precio) +
+      '</td><td class="num-col mono">' + bonif + '</td><td class="num-col mono">' + m2(it.importe) + '</td></tr>';
+  }).join("");
+
+  var g = v.descGlobal || 0;
+  var subItems = g > 0 ? v.items.reduce(function (s, it) { return s + it.importe; }, 0) : v.total;
+  var ivaTot = v.total - v.total / 1.21, netoTot = v.total / 1.21;
+  var tot = sec.querySelector(".totales");
+  if (esFA) {
+    var subNeto = subItems / 1.21;
+    tot.innerHTML =
+      '<div class="fila"><span>Subtotal neto gravado</span><span class="mono">$ ' + m2(subNeto) + '</span></div>' +
+      (g > 0 ? '<div class="fila"><span>Bonificación general ' + g + '%</span><span class="mono">− $ ' + m2(subNeto - netoTot) + '</span></div>' : '') +
+      '<div class="fila"><span>IVA 21%</span><span class="mono">$ ' + m2(ivaTot) + '</span></div>' +
+      '<div class="fila"><span>Percepciones / otros tributos</span><span class="mono">$ 0,00</span></div>' +
+      '<div class="total"><span class="et">Total</span><span class="v">$ ' + m2(v.total) + '</span></div>';
+  } else {
+    tot.innerHTML =
+      '<div class="fila"><span>Subtotal</span><span class="mono">$ ' + m2(subItems) + '</span></div>' +
+      (g > 0 ? '<div class="fila"><span>Bonificación general ' + g + '%</span><span class="mono">− $ ' + m2(subItems - v.total) + '</span></div>' : '') +
+      '<div class="fila"><span>IVA contenido (21%)</span><span class="mono">$ ' + m2(ivaTot) + '</span></div>' +
+      '<div class="total"><span class="et">Total</span><span class="v">$ ' + m2(v.total) + '</span></div>';
+  }
+
+  if (v.obs) {
+    var nota = sec.querySelector(".nota");
+    if (nota) nota.innerHTML += '<br><b>Observación:</b> ' + String(v.obs).replace(/[<>&]/g, function (c) { return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"; });
+  }
+
+  var gen = sec.querySelector(".generado span:last-child");
+  if (gen) gen.textContent = (esFA ? "Factura A " : "Factura B ") + v.numero + " · pág. 1 de 1";
+
+  var bar = document.createElement("div");
+  bar.style.cssText = "padding:10px 24px;background:#E6F7EF;color:#0A7A4F;font-size:13px;font-weight:500;display:flex;align-items:center;gap:12px;border-bottom:1px solid #BFE8D4;";
+  bar.innerHTML = '<span>✓ Comprobante generado desde la venta de la App Operativa — <b>' + (esFA ? "Factura A " : "Factura B ") + v.numero + '</b> · ' + v.metodoLabel + '</span>';
+  var btn = document.createElement("button");
+  btn.textContent = "Volver al demo";
+  btn.style.cssText = "margin-left:auto;height:30px;padding:0 14px;border:1px solid #0A7A4F;background:#fff;color:#0A7A4F;border-radius:999px;cursor:pointer;font-size:12px;font-weight:600;";
+  btn.onclick = function () { try { localStorage.removeItem("cr_venta"); } catch (e) {} location.href = location.pathname; };
+  bar.appendChild(btn);
+  var tb = document.querySelector(".toolbar");
+  tb.parentNode.insertBefore(bar, tb.nextSibling);
+
+  setTimeout(function () { sec.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+})();
+</script>
+
+</body>
+</html>
